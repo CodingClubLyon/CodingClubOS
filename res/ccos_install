@@ -1,0 +1,87 @@
+#!/bin/bash
+
+errhand() {
+    if [ "$1" != "0" ]; then
+	printf "Failed.\n"
+	exit 2
+    fi
+    if [ -z "$2" ]; then
+	printf "Success.\n"
+    fi
+}
+
+# User input errors
+if [ -z "$1" ] || [ ! -b "$1" ] || [ -z "$2" ] || [ ! -b "$2" ]; then
+    echo "Usage: $0 <target device> <source device>" >&2
+    exit 1
+elif [ "$USER" != "root" ]; then
+    echo "Root privileges required." >&2
+    exit 1
+fi
+
+printf "Generating install mountpoint... "
+installmnt=$(mktemp -d --tmpdir "ccos-install.XXXXXXXXXX" 2> /dev/null)
+errhand "$?"
+
+printf "Generating source mountpoint... "
+sourcemnt=$(mktemp -d --tmpdir "ccos-source.XXXXXXXXXX" 2> /dev/null)
+errhand "$?" 
+
+printf "Temporary install mountpoint: %s\n\n" "$installmnt"
+printf "Temporary source mountpoint: %s\n\n" "$sourcemnt"
+printf "Writing default SYSLINUX MBR to device... "
+dd if=/usr/lib/syslinux/mbr/mbr.bin of=$1 > /dev/null 2>&1
+errhand "$?"
+
+printf "Creating new filesystem on %s1... " "$1"
+mkfs.ext3 -F "${1}1" > /dev/null 2>&1
+errhand "$?"
+
+printf "Mounting source device on %s... " "$sourcemnt"
+mount "${2}1" $sourcemnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Mounting target device on %s... " "$installmnt"
+mount "${1}1" $installmnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Installing SYSLINUX... "
+mkdir -p $installmnt/boot/extlinux $installmnt/live > /dev/null 2>&1
+errhand "$?" next
+
+extlinux -i $installmnt/boot/extlinux > /dev/null 2>&1
+errhand "$?" next
+
+cp $sourcemnt/boot/extlinux/extlinux.conf $installmnt/boot/extlinux/extlinux.conf > /dev/null 2>&1
+errhand "$?"
+
+printf "Deploying kernel... "
+cp $sourcemnt/boot/vmlinuz $installmnt/boot/vmlinuz > /dev/null 2>&1
+errhand "$?"
+
+printf "Deploying initial ramdisk... "
+cp $sourcemnt/boot/initrd $installmnt/boot/initrd > /dev/null 2>&1
+errhand "$?"
+
+printf "Copying SquashFS image... "
+cp $sourcemnt/live/filesystem.squashfs $installmnt/live/filesystem.squashfs > /dev/null 2>&1
+errhand "$?"
+
+printf "Copying MANIFEST file... "
+cp $sourcemnt/manifest $installmnt/manifest > /dev/null 2>&1
+errhand "$?"
+
+printf "Unmounting target drive... "
+umount $installmnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Unmounting source drive... "
+umount $sourcemnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Cleaning up... "
+rmdir $installmnt > /dev/null 2>&1
+rmdir $sourcemnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Done, you can now reboot to the new install.\n"
