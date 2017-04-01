@@ -1,0 +1,55 @@
+#!/bin/bash
+
+errhand() {
+    if [ "$1" != "0" ]; then
+	printf "Failed.\n"
+	exit 2
+    fi
+    if [ -z "$2" ]; then
+	printf "Success.\n"
+    fi
+}
+
+# User input errors
+if [ -z "$1" ] || [ ! -b "$1" ]; then
+    echo -e "Usage: $0 <target ccos partition>\nThis script needs a valid ccos >= 1.1.x media to update it.\nConsider using ccos_mkboot instead to create a new media or upgrade from a ccos 1.0.x version." >&2
+    exit 1
+elif [ "$USER" != "root" ]; then
+    echo "Root privileges required." >&2
+    exit 1
+fi
+
+printf "Generating temporary download directory... "
+dl=$(mktemp -d --tmpdir "ccos-updl.XXXXXXXXXX" 2> /dev/null)
+errhand "$?"
+
+printf "Downloading latest ccos version...\n"
+cd $dl
+wget --quiet -r -nH --cut-dirs=7 --reject="index.html*" --no-parent --show-progress "https://bigsufi.vparres.ovh/fs/CodingClubOS/CurrentVersion/"
+cd -
+errhand "$?"
+
+printf "Generating destination mountpoint... "
+mnt=$(mktemp -d --tmpdir "ccos-update.XXXXXXXXXX" 2> /dev/null)
+errhand "$?"
+
+printf "Temporary mountpoint: %s\n\n" "$mnt"
+
+printf "Mounting target partition on %s... " "$mnt"
+mount "${1}" $mnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Deploying update...\n" 
+cp -rv $dl/* $mountpoint/ 2> /dev/null
+errhand "$?"
+
+printf "Unmounting partition... "
+umount $mnt > /dev/null 2>&1
+errhand "$?"
+
+printf "Cleaning up... "
+rmdir $mnt > /dev/null 2>&1
+rm -rf $dl > /dev/null 2>&1
+errhand "$?"
+
+printf "Done, CCOS has been successfully updated to lastest version.\n"
