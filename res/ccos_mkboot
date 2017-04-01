@@ -25,7 +25,7 @@ errhand "$?"
 
 printf "Downloading latest ccos version...\n"
 cd $dl
-wget --quiet -r -nH --cut-dirs=7 --reject="index.html*" --no-parent --show-progress "https://bigsufi.vparres.ovh/fs/CodingClubOS/CurrentVersion/"
+wget --quiet -r -nH --cut-dirs=3 --reject="index.html*" --no-parent --show-progress "https://bigsufi.vparres.ovh/fs/CodingClubOS/CurrentVersion/"
 cd -
 errhand "$?"
 
